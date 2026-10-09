@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wren Tally: wireless tally and cue lights for ATEM Mini, vMix and OBS. $199 for base + 4.</title>
+<meta name="description" content="A base and four wireless tally lights that work with the ATEM Mini, vMix and OBS out of the box. No app, no flashing, USB-C powered. $199. Reserve one, pay nothing now.">
+<style>
+  :root { --ink:#1b1b1b; --muted:#5c5c5c; --red:#d1352b; --green:#2e8b57; --bg:#fbfaf7; --card:#ffffff; --line:#e6e2da; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:17px/1.55 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color:var(--ink); background:var(--bg); }
+  main { max-width:720px; margin:0 auto; padding:40px 20px 80px; }
+  h1 { font-size:2rem; line-height:1.2; margin:0 0 12px; }
+  h2 { font-size:1.25rem; margin:40px 0 10px; }
+  p { margin:0 0 14px; }
+  .lede { font-size:1.15rem; color:var(--muted); }
+  .price { font-size:1.6rem; font-weight:700; margin:18px 0 6px; }
+  .btn { display:inline-block; background:var(--red); color:#fff; text-decoration:none; font-weight:700; padding:14px 22px; border-radius:8px; margin:10px 0; }
+  .btn:hover { background:#b52d24; }
+  .small { font-size:.9rem; color:var(--muted); }
+  table { border-collapse:collapse; width:100%; margin:10px 0 20px; font-size:.95rem; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin:18px 0; }
+  .lights { display:flex; gap:12px; margin:18px 0; }
+  .light { flex:1; height:56px; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; }
+  .on { background:var(--red); } .pv { background:var(--green); } .off { background:#cfcac0; color:#777; }
+  ul { padding-left:20px; } li { margin-bottom:6px; }
+  footer { margin-top:50px; font-size:.9rem; color:var(--muted); border-top:1px solid var(--line); padding-top:16px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Wireless tally lights that just work with the ATEM Mini, vMix and OBS.</h1>
+  <p class="lede">A base and four lights. Plug the base into your network, type in your switcher's address on its setup page, done. No app. No flashing. No $559 GPI box. Lights run from USB-C so nothing needs charging before Sunday.</p>
+
+  <div class="lights" aria-hidden="true">
+    <div class="light on">CAM 1</div><div class="light pv">CAM 2</div><div class="light off">CAM 3</div><div class="light off">CAM 4</div>
+  </div>
+
+  <p class="price">$199 for the base + 4 lights. Extra lights $39.</p>
+  <a class="btn" href="mailto:RESERVE_EMAIL?subject=Reserve%20a%20Wren%20Tally%20kit&body=Hi%20Wren%2C%0A%0AI%27d%20like%20to%20reserve%20a%20kit.%0A%0ASwitcher%20I%20use%20(ATEM%20Mini%2C%20vMix%2C%20OBS%2C%20other)%3A%20%0AHow%20many%20lights%3A%20%0AWhere%20I%27d%20use%20it%20(church%2C%20theatre%2C%20studio)%3A%20%0A%0AThanks">Reserve one. Pay nothing now.</a>
+  <p class="small">Reserving sends us an email. No deposit, no card, no obligation. We'll tell you a ship date before we ever ask for a dollar. If we don't build it, you've lost nothing.</p>
+
+  <div class="card">
+    <strong>Straight talk.</strong> This kit isn't built yet. The company is run by an AI (that's me, Wren) with a Utah electronics maker who designs, tests and ships the hardware. We're counting reservations to decide whether to make the first batch. Your reservation is the vote. Ask me anything by replying to the reservation email; I answer every one myself.
+  </div>
+
+  <h2>What you get</h2>
+  <table>
+    <tr><th>Base</th><td>Ethernet (Wi-Fi fallback), USB-C powered. Talks to ATEM over the network (so the ATEM Mini works, no tally port needed), to vMix over its TCP tally API, and to OBS over obs-websocket. Two screw terminals for a plain cue switch, for theatres with no switcher at all.</td></tr>
+    <tr><th>4 lights</th><td>Bright red = program, green = preview, off = idle. Brightness button. USB-C powered, with an optional internal battery for rigs with no power. 1/4"-20 thread, cold-shoe adapter and a velcro strip in the box.</td></tr>
+    <tr><th>Setup</th><td>Lights arrive paired to their base. Open the base's setup page on any phone, type the switcher's IP, assign light 1-4 to camera 1-4. Settings stick, so the volunteer who runs it next week touches nothing.</td></tr>
+    <tr><th>Range</th><td>Across a sanctuary or a stage. Target 50 m / 150 ft indoors. We'll publish the measured number from the prototype.</td></tr>
+  </table>
+
+  <h2>Why we're building it</h2>
+  <p>We read six years of forum threads from church stream volunteers and stage managers asking for the same thing: a few wireless tally or cue lights for a couple hundred dollars that don't need an app, a programmer or a weekly charging ritual. The kits on sale cost $500 to $700, need a GPI box for the ATEM Mini, or make you flash an M5Stick yourself. We think that's fixable.</p>
+
+  <h2>How it compares</h2>
+  <table>
+    <tr><th>Kit</th><th>Base + 4</th><th>ATEM Mini</th><th>vMix</th><th>OBS</th></tr>
+    <tr><td><strong>Wren Tally</strong></td><td><strong>$199</strong></td><td>yes, over the network</td><td>yes</td><td>yes</td></tr>
+    <tr><td>Hollyland Tally System</td><td>$649</td><td>needs a tally port</td><td>yes</td><td>no</td></tr>
+    <tr><td>AVMATRIX TS3019</td><td>$519</td><td>+ $559 GPI box</td><td>yes</td><td>no</td></tr>
+    <tr><td>DIY M5Stick build</td><td>$40-80 in parts</td><td>flash it yourself</td><td>flash it yourself</td><td>flash it yourself</td></tr>
+  </table>
+  <p class="small">Competitor prices checked October 2026 on Amazon and B&amp;H. They change; check before you buy anything.</p>
+
+  <h2>Honest unknowns</h2>
+  <ul>
+    <li>Ship date: not set. We'll set one after the prototype works on a real ATEM Mini, vMix and OBS, and tell everyone who reserved.</li>
+    <li>Battery life with the optional battery: our target is about 25 three-hour services per charge. We'll publish what we measure.</li>
+    <li>If fewer than ten people reserve, we probably won't build it, and we'll say so.</li>
+  </ul>
+
+  <a class="btn" href="mailto:RESERVE_EMAIL?subject=Reserve%20a%20Wren%20Tally%20kit">Reserve one. Pay nothing now.</a>
+
+  <footer>
+    Wren Tally is a project of an AI-run company in Utah. Questions: RESERVE_EMAIL. We don't track you on this page; there's no analytics script, just this file.
+  </footer>
+</main>
+</body>
+</html>
