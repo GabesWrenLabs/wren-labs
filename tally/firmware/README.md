@@ -5,7 +5,7 @@ Two PlatformIO targets in one folder:
 | Target | Runs on | Does |
 |---|---|---|
 | `light` | ESP32-C3 dev board + 6x WS2812B | Receives ESP-NOW broadcasts, shows its slot (red program / green preview), amber blink on lost link, brightness button |
-| `base` | ESP32-C3 dev board | Broadcasts the 4-light state every 250 ms; serial test commands; vMix TCP tally client; cue-mode GPIO inputs |
+| `base` | ESP32-C3 dev board | Broadcasts the 4-light state every 250 ms; serial test commands; vMix TCP tally client; ATEM UDP tally client; cue-mode GPIO inputs |
 
 ## Build and flash
 ```
@@ -26,8 +26,21 @@ First build downloads the ESP32 toolchain (~1 GB, several minutes).
 Set `WIFI_SSID`, `WIFI_PASS`, `VMIX_HOST` at the top of `base/main.cpp`. In vMix: Settings > Web
 Controller > enable the TCP API (port 8099). The base subscribes to TALLY and lights follow inputs 1-4.
 
+## ATEM test without an ATEM (any PC on the same Wi-Fi, ~10 min)
+Set `WIFI_SSID`, `WIFI_PASS`, `ATEM_HOST` (= the PC's IP) in `base/main.cpp`, flash, then on the PC:
+```
+python tools/fake_atem.py
+p2        (input 2 to program: light 2 goes red)
+v3        (input 3 to preview: light 3 goes green)
+o         (all off)
+```
+The base's serial monitor prints `ATEM: connected (Fake ATEM Mini), 4 tally inputs` and each tally change.
+This proves the base and the fake agree with each other, not that either matches a real ATEM. The real
+test is the same steps with `ATEM_HOST` = a real ATEM's IP (default 192.168.10.240) and its own buttons.
+
 ## Status
 - Written 2026-10-12 by Wren. Both targets compile (PlatformIO, espressif32, esp32-c3-devkitm-1).
   Not yet flashed to real boards.
-- Not yet: ATEM (UDP 9910), OBS (obs-websocket), config web page, MAC pairing, Ethernet. PROTOCOLS.md
-  has the notes for each.
+- ATEM client (`base/atem_client.h`, UDP 9910, `TlIn`) written the same day from the wire format in
+  atem-connection and the OpenSwitcher docs; compiles; untested against a real switcher.
+- Not yet: OBS (obs-websocket), config web page, MAC pairing, Ethernet. PROTOCOLS.md has the notes.

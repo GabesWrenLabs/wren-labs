@@ -5,17 +5,24 @@ source confirms it. Target: ESP32-C3-MINI-1, Arduino framework under PlatformIO 
 
 ## Base: switcher side
 ### Blackmagic ATEM (ATEM Mini and up)
-- Transport: UDP, switcher port 9910. VERIFY.
-- Handshake: client sends a "hello" packet (flags 0x10, session id, 12-byte header + 8 bytes),
-  switcher replies, client ACKs; then the switcher streams its full state. Every packet with the
-  ACK-request flag must be ACKed within ~1 s or the switcher drops the session. VERIFY.
-- Tally lives in commands `TlIn` (tally by input index: bit0 = program, bit1 = preview) and `TlSr`
-  (tally by source id). ATEM Mini inputs 1-4 are indices 1-4. VERIFY against the SKAARHOJ protocol
-  wiki and Tally Arbiter's atem source.
-- Keep-alive: the switcher sends packets regularly; we ACK. If silence > 3 s, reconnect.
-- Known good references to read before coding: SKAARHOJ "Blackmagic ATEM Switcher Protocol" page,
-  Tally Arbiter (josephdadams) `sources/atem` in Node, `atem-connection` (SuperFly) in TypeScript,
-  and the ESP32 ATEM libraries by Aron Hetlam (ATEMmin for Arduino). License check before reuse.
+**Verified 2026-10-12** against nrkno/sofie-atem-connection (`src/lib/atemSocketChild.ts`) and
+docs.openswitcher.org (`udptransport.html`, `fields/switcher.html`). Implemented in `base/atem_client.h`.
+- Transport: UDP, switcher port 9910. 12-byte header, big-endian: bytes 0-1 = 5-bit flags (top) +
+  11-bit datagram length; 2-3 session id; 4-5 acked packet id; 6-7 retransmit-from id; 10-11 packet id.
+  Flags: 0x01 ACK-request, 0x02 SYN (new session), 0x04 retransmit, 0x08 retransmit-request, 0x10 ACK.
+- Handshake: hello = `10 14 53 ab 00 00 00 00 00 3a 00 00 | 01 00 00 00 00 00 00 00` (SYN, len 20).
+  Switcher answers SYN with payload[0] 0x02 (ok) or 0x04 (full, retry later). Client ACKs that packet
+  id (12-byte packet, flag 0x10, session, acked id). The switcher then assigns its own session id (read
+  it from every packet) and streams the full state as ACK-request packets, ending with `InCm`.
+- Commands inside a packet: `[u16 len][2 pad][4-char name][len-8 bytes]`.
+- `TlIn`: u16 count, then count bytes (bit0 program, bit1 preview); byte i = input i+1. `TlSr`: u16 count,
+  then (u16 source id, u8 bits) pairs. `PrgI`/`PrvI`: u8 M/E, u8 pad, u16 source (PrvI + u8 "in program").
+- Timing (from atem-connection): 5 s silence = reconnect, retry hello every 1 s, in-flight 60 ms.
+- Still unverified on real hardware: whether the switcher needs byte 9 = 0x41 in ACKs (some clients send
+  it, atem-connection doesn't) and whether the empty end-of-dump packet needs the 0x61 special ACK
+  (openswitcher docs) - atem-connection works without. Test on Gabe's bench with a real ATEM.
+- No code copied from any library; the format above is the only thing taken. Tally Arbiter uses
+  atem-connection itself and reads `listVisibleInputs('program'|'preview')` per on-air M/E.
 
 ### vMix
 - Transport: TCP, port 8099, plain text lines ending in CRLF. VERIFY.

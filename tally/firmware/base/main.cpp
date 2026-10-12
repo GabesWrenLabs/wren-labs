@@ -8,25 +8,31 @@
 //   - vMix TCP tally client (port 8099, SUBSCRIBE TALLY) when WIFI_SSID/WIFI_PASS/VMIX_HOST are
 //     set below. vMix was chosen first because its protocol is plain text and testable from this PC.
 //   - Cue mode: two grounded inputs drive lights 1 and 2 (GO / STANDBY) with no switcher.
-// Not yet: ATEM (UDP 9910), OBS (obs-websocket 4455), the config web page, Ethernet. See PROTOCOLS.md.
+//   - ATEM UDP tally client (port 9910, TlIn command) when ATEM_HOST is set. Not yet tested on a
+//     real switcher; see atem_client.h for the sources the wire format came from.
+// Not yet: OBS (obs-websocket 4455), the config web page, Ethernet. See PROTOCOLS.md.
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
 #include "wren_proto.h"
 #include "wren_pins.h"
+#include "atem_client.h"
 
 // ---- bench config (will move to NVS + web page) ----
 static const char *WIFI_SSID = "";      // leave empty for serial-only / cue-only operation
 static const char *WIFI_PASS = "";
-static const char *VMIX_HOST = "";      // e.g. "192.168.1.50"
+static const char *VMIX_HOST = "";      // e.g. "192.168.1.50"; leave empty if not using vMix
 static const uint16_t VMIX_PORT = 8099;
-// Light N shows vMix input INPUT_MAP[N-1] (1-based). Will be a dropdown on the web page.
+static const char *ATEM_HOST = "";      // e.g. "192.168.10.240" (ATEM default); empty = no ATEM
+// Light N shows switcher input INPUT_MAP[N-1] (1-based). Will be a dropdown on the web page.
 static uint8_t INPUT_MAP[WREN_MAX_LIGHTS] = {1, 2, 3, 4};
 
 static WrenPacket pkt;
 static bool cueMode = false;
 static WiFiClient vmix;
+static AtemClient atem;
+static bool atemStarted = false;
 static uint32_t lastTxMs = 0, lastVmixTryMs = 0;
 static bool switcherLive = false;
 static String vmixLine;
@@ -111,6 +117,24 @@ static void pollVmix() {
   }
 }
 
+// ATEM: TlIn gives one byte per input (bit0 program, bit1 preview). Lights follow INPUT_MAP.
+static void applyAtemTally() {
+  for (int i = 0; i < WREN_MAX_LIGHTS; i++) pkt.state[i] = atem.stateForInput(INPUT_MAP[i]);
+  sendPacket();
+}
+
+static void pollAtem() {
+  if (strlen(ATEM_HOST) == 0) return;
+  if (WiFi.status() != WL_CONNECTED) { if (strlen(VMIX_HOST) == 0) switcherLive = false; return; }
+  if (!atemStarted) { atem.begin(ATEM_HOST); atemStarted = true; }
+  bool changed = atem.poll();
+  if (strlen(VMIX_HOST) == 0) switcherLive = atem.connected;
+  if (changed && atem.connected) {
+    applyAtemTally();
+    Serial.printf("ATEM tally: %u %u %u %u\n", pkt.state[0], pkt.state[1], pkt.state[2], pkt.state[3]);
+  }
+}
+
 static void pollCueInputs() {
   if (!cueMode) return;
   pkt.state[0] = digitalRead(BASE_CUE_IN_1) == LOW ? WREN_PROGRAM : WREN_OFF;
@@ -150,6 +174,7 @@ void setup() {
 void loop() {
   handleSerial();
   pollVmix();
+  pollAtem();
   pollCueInputs();
 
   uint32_t now = millis();
