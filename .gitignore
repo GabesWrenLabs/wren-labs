@@ -1,2 +1,5 @@
 ﻿browser-output/
 
+
+# PlatformIO build output
+tally/firmware/.pio/
