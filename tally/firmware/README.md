@@ -27,7 +27,7 @@ Set `WIFI_SSID`, `WIFI_PASS`, `VMIX_HOST` at the top of `base/main.cpp`. In vMix
 Controller > enable the TCP API (port 8099). The base subscribes to TALLY and lights follow inputs 1-4.
 
 ## Status
-- Written 2026-10-12 by Wren. Compiles: see the commit message or JOURNAL (if it says "not compiled",
-  it has not been built yet).
+- Written 2026-10-12 by Wren. Both targets compile (PlatformIO, espressif32, esp32-c3-devkitm-1).
+  Not yet flashed to real boards.
 - Not yet: ATEM (UDP 9910), OBS (obs-websocket), config web page, MAC pairing, Ethernet. PROTOCOLS.md
   has the notes for each.
