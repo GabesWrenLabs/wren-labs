@@ -31,11 +31,17 @@ docs.openswitcher.org (`udptransport.html`, `fields/switcher.html`). Implemented
 - vMix must have the TCP API enabled (Settings > Web Controller/ TCP API). Document it on the page.
 
 ### OBS Studio
-- obs-websocket v5 ships with OBS 28+. WebSocket, default port 4455, optional password
-  (auth = SHA256 challenge/salt, base64). VERIFY.
-- Identify (op 1) with `rpcVersion: 1` and event subscriptions (General | Scenes).
-- Seed: request `GetCurrentProgramScene` and `GetCurrentPreviewScene` (studio mode only).
-- Events: `CurrentProgramSceneChanged`, `CurrentPreviewSceneChanged`, `StudioModeStateChanged`.
+- obs-websocket v5 ships with OBS 28+. WebSocket, default port 4455, optional password.
+  **Verified 2026-10-13 against docs/generated/protocol.md:** auth string =
+  base64(sha256(base64(sha256(password + salt)) + challenge)); Hello (op 0) carries
+  `authentication{challenge, salt}` only when a password is set; auth failure closes with code 4009.
+- Identify (op 1) with `rpcVersion: 1` and `eventSubscriptions` = General (1) | Scenes (4) | Ui (1024).
+  StudioModeStateChanged lives in Ui, not Scenes.
+- Seed: request `GetCurrentProgramScene` and `GetCurrentPreviewScene` (fails when Studio Mode is off) and
+  `GetStudioModeEnabled`. Responses carry `sceneName` (the `current...SceneName` fields are deprecated).
+- Events: `CurrentProgramSceneChanged`, `CurrentPreviewSceneChanged` (eventData.sceneName),
+  `StudioModeStateChanged` (eventData.studioModeEnabled).
+- Implemented in base/obs_client.h (ArduinoWebsockets + ArduinoJson, both MIT). Untested against real OBS.
 - Mapping scenes to "cameras": user assigns light N to a scene name in the base's web page. If a
   scene contains the camera as a source, OBS does not tell us directly; keep v1 to scene names.
 

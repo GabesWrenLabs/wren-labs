@@ -10,7 +10,9 @@
 //   - Cue mode: two grounded inputs drive lights 1 and 2 (GO / STANDBY) with no switcher.
 //   - ATEM UDP tally client (port 9910, TlIn command) when ATEM_HOST is set. Not yet tested on a
 //     real switcher; see atem_client.h for the sources the wire format came from.
-// Not yet: OBS (obs-websocket 4455), the config web page, Ethernet. See PROTOCOLS.md.
+//   - OBS Studio client (obs-websocket v5, port 4455) when OBS_HOST is set. Lights follow scene
+//     names in SCENE_MAP. Not yet tested against a real OBS; see obs_client.h.
+// Not yet: the config web page, Ethernet. See PROTOCOLS.md.
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
@@ -18,6 +20,7 @@
 #include "wren_proto.h"
 #include "wren_pins.h"
 #include "atem_client.h"
+#include "obs_client.h"
 
 // ---- bench config (will move to NVS + web page) ----
 static const char *WIFI_SSID = "";      // leave empty for serial-only / cue-only operation
@@ -25,14 +28,20 @@ static const char *WIFI_PASS = "";
 static const char *VMIX_HOST = "";      // e.g. "192.168.1.50"; leave empty if not using vMix
 static const uint16_t VMIX_PORT = 8099;
 static const char *ATEM_HOST = "";      // e.g. "192.168.10.240" (ATEM default); empty = no ATEM
+static const char *OBS_HOST = "";       // e.g. "192.168.1.20" (the PC running OBS); empty = no OBS
+static const uint16_t OBS_PORT = 4455;
+static const char *OBS_PASS = "";       // OBS > Tools > WebSocket Server Settings; empty if auth is off
 // Light N shows switcher input INPUT_MAP[N-1] (1-based). Will be a dropdown on the web page.
 static uint8_t INPUT_MAP[WREN_MAX_LIGHTS] = {1, 2, 3, 4};
+// OBS has scenes, not inputs: light N lights when SCENE_MAP[N-1] is the program (red) / preview (green) scene.
+static const char *SCENE_MAP[WREN_MAX_LIGHTS] = {"Camera 1", "Camera 2", "Camera 3", "Camera 4"};
 
 static WrenPacket pkt;
 static bool cueMode = false;
 static WiFiClient vmix;
 static AtemClient atem;
-static bool atemStarted = false;
+static ObsClient obs;
+static bool atemStarted = false, obsStarted = false;
 static uint32_t lastTxMs = 0, lastVmixTryMs = 0;
 static bool switcherLive = false;
 static String vmixLine;
@@ -135,6 +144,22 @@ static void pollAtem() {
   }
 }
 
+// OBS: lights follow scene names. Only the configured switcher that is actually connected drives
+// switcherLive, so an unused OBS entry never masks a live vMix/ATEM link.
+static void pollObs() {
+  if (strlen(OBS_HOST) == 0) return;
+  if (WiFi.status() != WL_CONNECTED) { if (strlen(VMIX_HOST) == 0 && strlen(ATEM_HOST) == 0) switcherLive = false; return; }
+  if (!obsStarted) { obs.begin(OBS_HOST, OBS_PORT, OBS_PASS); obsStarted = true; }
+  bool changed = obs.poll();
+  if (strlen(VMIX_HOST) == 0 && strlen(ATEM_HOST) == 0) switcherLive = obs.connected;
+  if (changed && obs.connected) {
+    for (int i = 0; i < WREN_MAX_LIGHTS; i++) pkt.state[i] = obs.stateForScene(SCENE_MAP[i]);
+    sendPacket();
+    Serial.printf("OBS tally: %u %u %u %u  (program \"%s\", preview \"%s\")\n", pkt.state[0], pkt.state[1],
+                  pkt.state[2], pkt.state[3], obs.programScene.c_str(), obs.previewScene.c_str());
+  }
+}
+
 static void pollCueInputs() {
   if (!cueMode) return;
   pkt.state[0] = digitalRead(BASE_CUE_IN_1) == LOW ? WREN_PROGRAM : WREN_OFF;
@@ -175,6 +200,7 @@ void loop() {
   handleSerial();
   pollVmix();
   pollAtem();
+  pollObs();
   pollCueInputs();
 
   uint32_t now = millis();
