@@ -5,7 +5,7 @@ Two PlatformIO targets in one folder:
 | Target | Runs on | Does |
 |---|---|---|
 | `light` | ESP32-C3 dev board + 6x WS2812B | Receives ESP-NOW broadcasts, shows its slot (red program / green preview), amber blink on lost link, brightness button |
-| `base` | ESP32-C3 dev board | Broadcasts the 4-light state every 250 ms; serial test commands; vMix TCP tally client; ATEM UDP tally client; OBS (obs-websocket) client; cue-mode GPIO inputs |
+| `base` | ESP32-C3 dev board | Broadcasts the 4-light state every 250 ms; **setup web page** (Wi-Fi, switcher, light mapping, saved in flash); serial test commands; vMix TCP tally client; ATEM UDP tally client; OBS (obs-websocket) client; cue-mode GPIO inputs |
 
 ## Build and flash
 ```
@@ -22,12 +22,22 @@ First build downloads the ESP32 toolchain (~1 GB, several minutes).
 3. Unplug board A: within 2 s board B shows one amber LED blinking (lost link).
 4. Walk away with board B until it loses link. Note the distance: that's the range question answered.
 
+## Setup page (no constants to edit, no reflash per venue) - v0.4
+1. Power the base. With nothing saved it makes a Wi-Fi network **WrenTally-XXXX** (password `wrentally`).
+2. Join it from a phone or laptop and open **http://192.168.4.1/**
+3. Enter the venue Wi-Fi, pick the switcher (vMix / ATEM / OBS), its IP, which input or OBS scene each
+   light follows, brightness. **Save and restart.**
+4. The base joins the venue Wi-Fi; the page is then at **http://wren-tally.local/** (or the IP on the serial
+   monitor). The setup network stays up for 10 minutes after each boot, so a wrong password never locks you out.
+5. Serial `f` + Enter (or the Factory reset button on the page) clears everything.
+Settings are in ESP32 NVS (`Preferences`, namespace `wren`). The page is served by the core's `WebServer`.
+
 ## vMix test (this PC runs the vMix trial)
-Set `WIFI_SSID`, `WIFI_PASS`, `VMIX_HOST` at the top of `base/main.cpp`. In vMix: Settings > Web
-Controller > enable the TCP API (port 8099). The base subscribes to TALLY and lights follow inputs 1-4.
+On the setup page choose vMix and the PC's IP. In vMix: Settings > Web Controller > enable the TCP API
+(port 8099). The base subscribes to TALLY and lights follow the inputs you mapped.
 
 ## ATEM test without an ATEM (any PC on the same Wi-Fi, ~10 min)
-Set `WIFI_SSID`, `WIFI_PASS`, `ATEM_HOST` (= the PC's IP) in `base/main.cpp`, flash, then on the PC:
+On the setup page choose ATEM and the PC's IP, save, then on the PC:
 ```
 python tools/fake_atem.py
 p2        (input 2 to program: light 2 goes red)
@@ -36,12 +46,12 @@ o         (all off)
 ```
 The base's serial monitor prints `ATEM: connected (Fake ATEM Mini), 4 tally inputs` and each tally change.
 This proves the base and the fake agree with each other, not that either matches a real ATEM. The real
-test is the same steps with `ATEM_HOST` = a real ATEM's IP (default 192.168.10.240) and its own buttons.
+test is the same steps with the IP of a real ATEM (default 192.168.10.240) and its own buttons.
 
 ## OBS test (any PC running OBS 28+ on the same Wi-Fi, ~10 min)
 In OBS: Tools > WebSocket Server Settings > Enable, note the port (4455) and the password (or turn auth off).
-Set `WIFI_SSID`, `WIFI_PASS`, `OBS_HOST` (= the PC's IP), `OBS_PASS` in `base/main.cpp`, and put your scene
-names in `SCENE_MAP` (light 1 = first name, and so on). Flash. The serial monitor prints
+On the setup page choose OBS, the PC's IP, the password, and type your scene names next to each light
+(light 1 = first name, and so on). Save. The serial monitor prints
 `OBS: connected. program="..." preview="..." studio=0/1`. Switch scenes: the matching light goes red.
 Turn on Studio Mode and pick a preview scene: that light goes green.
 
@@ -52,4 +62,7 @@ Turn on Studio Mode and pick a preview scene: that light goes green.
   atem-connection and the OpenSwitcher docs; compiles; untested against a real switcher.
 - OBS client (`base/obs_client.h`, obs-websocket v5, port 4455, password auth) written 2026-10-13 from the
   official protocol doc; untested against a real OBS.
-- Not yet: config web page, MAC pairing, Ethernet. PROTOCOLS.md has the notes.
+- Setup web page + NVS settings (`base/config.h`, `base/web_config.h`) written 2026-10-13 (v0.4); compiles;
+  untested on a board. Known dev-stage caveat: joining a venue Wi-Fi moves the radio to that router's channel,
+  and the lights listen on `WREN_WIFI_CHANNEL`; set the router to that channel for now (channel-follow is next).
+- Not yet: MAC pairing, Ethernet. PROTOCOLS.md has the notes.
