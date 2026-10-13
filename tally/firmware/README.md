@@ -48,6 +48,18 @@ The base's serial monitor prints `ATEM: connected (Fake ATEM Mini), 4 tally inpu
 This proves the base and the fake agree with each other, not that either matches a real ATEM. The real
 test is the same steps with the IP of a real ATEM (default 192.168.10.240) and its own buttons.
 
+## OBS test without OBS (any PC on the same Wi-Fi, ~10 min)
+```
+python tools/fake_obs.py --password abc     (or no --password for auth off)
+p2        (program "Camera 2": light 2 goes red)
+s         (studio mode on)
+v3        (preview "Camera 3": light 3 goes green)
+o         (program "Blank": all off)
+```
+On the base's setup page choose OBS, the PC's IP, password `abc`, scene names "Camera 1".."Camera 4".
+`python tools/test_fake_obs.py abc` checks the fake itself (handshake, password hash, seed requests; it
+passed 2026-10-13). Same caveat as the ATEM fake: it proves the two ends agree, not that either matches OBS.
+
 ## OBS test (any PC running OBS 28+ on the same Wi-Fi, ~10 min)
 In OBS: Tools > WebSocket Server Settings > Enable, note the port (4455) and the password (or turn auth off).
 On the setup page choose OBS, the PC's IP, the password, and type your scene names next to each light
