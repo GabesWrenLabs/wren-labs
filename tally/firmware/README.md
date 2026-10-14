@@ -22,7 +22,7 @@ First build downloads the ESP32 toolchain (~1 GB, several minutes).
 3. Unplug board A: within 2 s board B shows one amber LED blinking (lost link).
 4. Walk away with board B until it loses link. Note the distance: that's the range question answered.
 
-## Setup page (no constants to edit, no reflash per venue) - v0.4
+## Setup page (no constants to edit, no reflash per venue) - v0.4+
 1. Power the base. With nothing saved it makes a Wi-Fi network **WrenTally-XXXX** (password `wrentally`).
 2. Join it from a phone or laptop and open **http://192.168.4.1/**
 3. Enter the venue Wi-Fi, pick the switcher (vMix / ATEM / OBS), its IP, which input or OBS scene each
@@ -75,6 +75,10 @@ Turn on Studio Mode and pick a preview scene: that light goes green.
 - OBS client (`base/obs_client.h`, obs-websocket v5, port 4455, password auth) written 2026-10-13 from the
   official protocol doc; untested against a real OBS.
 - Setup web page + NVS settings (`base/config.h`, `base/web_config.h`) written 2026-10-13 (v0.4); compiles;
-  untested on a board. Known dev-stage caveat: joining a venue Wi-Fi moves the radio to that router's channel,
-  and the lights listen on `WREN_WIFI_CHANNEL`; set the router to that channel for now (channel-follow is next).
-- Not yet: MAC pairing, Ethernet. PROTOCOLS.md has the notes.
+  untested on a board.
+- Channel-follow (v0.5, 2026-10-14): the base can join a venue Wi-Fi on any channel; a light that loses the
+  link scans channels 1-13 (400 ms each), locks on the base and remembers the channel in flash. Packet is
+  now proto v2 (adds the base's channel byte), so flash both ends together. Untested on a board.
+  Bench check: power a light with the base off; LED 6 blinks amber and the serial log prints "scanning";
+  power the base on a venue Wi-Fi that is not channel 1; within ~5 s the log prints "base found on channel N".
+- Not yet: MAC pairing, Ethernet, OTA partition table. PROTOCOLS.md has the notes.

@@ -51,12 +51,16 @@ docs.openswitcher.org (`udptransport.html`, `fields/switcher.html`). Implemented
 3. Cue mode: no switcher; GPIO inputs drive lights 1 and 2 directly.
 
 ## Base <-> lights: ESP-NOW
-- ESP-NOW works on Wi-Fi channel; base must stay on one channel. If the base also joins Wi-Fi
-  (fallback mode), lights must follow the AP's channel: send the channel in the pairing record.
-  With Ethernet as primary, keep Wi-Fi in STA mode, channel fixed (default 1), no AP join.
-- Packet: 1-byte version, 1-byte seq, 4 bytes of state (one byte per light: 0 off, 1 program,
-  2 preview, 3 both), 1 byte brightness, 1 byte flags. Broadcast every 250 ms even if unchanged,
-  so a light that missed a packet converges in <= 250 ms and can show "lost link" after 2 s.
+- ESP-NOW only works with both ends on the same Wi-Fi channel, and once the base joins the venue
+  Wi-Fi its channel is whatever that router uses. **Channel-follow (v0.5, 2026-10-14):** a light
+  with no link hops channels 1..13, 400 ms each (longer than the 250 ms broadcast period), locks on
+  the first valid packet and saves that channel in flash for the next power-up. Worst case ~5 s to
+  find the base; a power-cycled light normally re-links in well under a second. Stand-alone base
+  (no venue Wi-Fi) sits on channel 1. Implemented in light/main.cpp; untested on hardware.
+- Packet (proto v2): 1-byte version, 1-byte seq, 4 bytes of state (one byte per light: 0 off,
+  1 program, 2 preview, 3 both), 1 byte brightness, 1 byte flags, 1 byte channel (informational,
+  for the serial log). Broadcast every 250 ms even if unchanged, so a light that missed a packet
+  converges in <= 250 ms and can show "lost link" after 2 s.
 - Pairing: lights ship with the base's MAC burned in NVS. Pairing button on base + light: 10 s
   window, base broadcasts its MAC, light stores it. No screens.
 - Range: ESP-NOW long-range mode (802.11 LR) is ESP32-only, NOT on C3 for peer links without

@@ -1,6 +1,8 @@
-// Wren Tally base: switcher client -> ESP-NOW broadcaster. Dev-board stage, v0.4.
+// Wren Tally base: switcher client -> ESP-NOW broadcaster. Dev-board stage, v0.5.
 //
 // What works in this version:
+//   - Any venue Wi-Fi channel: the base sits wherever the router puts it, lights scan and follow
+//     (wren_proto.h "Channel-follow"); the packet and the status line both report the channel.
 //   - Settings live in NVS (config.h) and are edited on a web page (web_config.h): venue Wi-Fi,
 //     switcher type + IP, which input / OBS scene each light follows, brightness. No constants to
 //     edit, no reflash to move the base to a new venue.
@@ -37,10 +39,18 @@ static uint32_t lastTxMs = 0, lastVmixTryMs = 0;
 static bool switcherLive = false;
 static String vmixLine;
 
+static uint8_t currentChannel() {
+  uint8_t primary = 0;
+  wifi_second_chan_t second;
+  if (esp_wifi_get_channel(&primary, &second) != ESP_OK) return 0;
+  return primary;
+}
+
 static void sendPacket() {
   pkt.version = WREN_PROTO_VERSION;
   pkt.seq++;
   pkt.flags = (cueMode ? WREN_FLAG_CUE_MODE : 0) | (switcherLive ? WREN_FLAG_SWITCHER : 0);
+  pkt.channel = currentChannel();  // informational; lights find us by scanning (wren_proto.h)
   esp_now_send(WREN_BROADCAST_MAC, (const uint8_t *)&pkt, sizeof(pkt));
 }
 
@@ -48,11 +58,11 @@ static void setAll(uint8_t s) { for (int i = 0; i < WREN_MAX_LIGHTS; i++) pkt.st
 
 static String statusText() {
   char buf[200];
-  snprintf(buf, sizeof(buf), "lights: %u %u %u %u  bright=%u cue=%d\nswitcher: %s %s:%u %s\nwifi: %s%s  seq=%u",
+  snprintf(buf, sizeof(buf), "lights: %u %u %u %u  bright=%u cue=%d\nswitcher: %s %s:%u %s\nwifi: %s%s  channel=%u  seq=%u",
            pkt.state[0], pkt.state[1], pkt.state[2], pkt.state[3], pkt.brightness, cueMode,
            cfg.typeName(), cfg.host.c_str(), cfg.effectivePort(), switcherLive ? "CONNECTED" : "not connected",
            WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString().c_str() : "not joined",
-           web.apUp ? " (setup AP up)" : "", pkt.seq);
+           web.apUp ? " (setup AP up)" : "", currentChannel(), pkt.seq);
   return String(buf);
 }
 
@@ -182,8 +192,8 @@ void setup() {
                 cfg.inputMap[0], cfg.inputMap[1], cfg.inputMap[2], cfg.inputMap[3], cfg.brightness);
 
   // Brings up STA (if a venue Wi-Fi is saved) and the setup AP, then the web page.
-  // NOTE: joining a venue AP moves the radio to that AP's channel; lights must be on the same one.
-  // Dev-board stage: set the router to channel WREN_WIFI_CHANNEL or change WREN_WIFI_CHANNEL on both ends.
+  // Joining a venue AP moves the radio to that AP's channel. That's fine: lights scan for us
+  // (see wren_proto.h "Channel-follow") and the packet carries the channel for the serial log.
   web.begin(&cfg, statusText, WREN_WIFI_CHANNEL);
 
   if (esp_now_init() != ESP_OK) { Serial.println("esp_now_init failed"); while (true) delay(1000); }

@@ -84,8 +84,8 @@ class WebConfig {
   char _apName[20] = "WrenTally";
 
   void _startAp() {
-    // Stand-alone: AP on the ESP-NOW channel so the lights hear us. With a venue STA link the AP
-    // follows the STA's channel (hardware has one radio), which is the known dev-stage caveat.
+    // Stand-alone: AP on the default ESP-NOW channel. With a venue STA link the AP follows the
+    // STA's channel (one radio); the lights scan for whichever channel we end up on.
     apUp = WiFi.softAP(_apName, _cfg->apPass.c_str(), _cfg->ssid.length() ? 1 : _channel);
     Serial.printf("wifi: setup AP %s (pw %s) at http://%s/\n", _apName, _cfg->apPass.c_str(),
                   WiFi.softAPIP().toString().c_str());
@@ -151,7 +151,7 @@ class WebConfig {
     h += _esc(c.apPass);
     h += F("\"></fieldset><button type=submit>Save and restart</button></form>"
            "<form method=post action=/reset onsubmit=\"return confirm('Clear all settings?')\"><button type=submit>Factory reset</button></form>"
-           "<p><small>Wren Tally base, firmware v0.4 (dev-board stage). Made by Wren Labs.</small></p></body></html>");
+           "<p><small>Wren Tally base, firmware v0.5 (dev-board stage). Made by Wren Labs.</small></p></body></html>");
     _server.send(200, "text/html", h);
   }
 

@@ -24,17 +24,27 @@ typedef struct __attribute__((packed)) {
   uint8_t state[WREN_MAX_LIGHTS];    // one WrenState per light, index = light number - 1
   uint8_t brightness;                // 0..255
   uint8_t flags;                     // WREN_FLAG_*
-} WrenPacket;                        // 8 bytes
+  uint8_t channel;                   // Wi-Fi channel the base is transmitting on (1..13); v2+
+} WrenPacket;                        // 9 bytes
 
 // Timing (ms). Base broadcasts every WREN_TX_PERIOD even if nothing changed, so a light
 // that missed a packet converges within one period and can show "lost link" after WREN_LINK_TIMEOUT.
 #define WREN_TX_PERIOD     250
 #define WREN_LINK_TIMEOUT  2000
 
+// Channel-follow (light side). ESP-NOW only works when both ends sit on the same Wi-Fi channel,
+// and the base's channel is whatever the venue router uses once it joins that Wi-Fi. So a light
+// that has lost the link hops through channels 1..13, dwelling WREN_SCAN_DWELL on each (longer
+// than one TX period, so a live base can't be missed), locks on the first valid packet, and
+// remembers that channel in flash for the next power-up. Worst case to find the base: ~5 s.
+#define WREN_SCAN_DWELL    400
+#define WREN_CHANNEL_MIN   1
+#define WREN_CHANNEL_MAX   13
+#define WREN_CHANNEL_DEFAULT 1   // stand-alone base (no venue Wi-Fi) sits here
+
 // Dev-board stage: all lights accept broadcasts from any base. Pairing by MAC comes with the
 // real boards (PROTOCOLS.md "Pairing"). The broadcast peer address:
 static const uint8_t WREN_BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
-// Wi-Fi channel both ends sit on. Must match. 1 by default; the base's web page will let the
-// user change it later (needed if the base also joins a Wi-Fi network on another channel).
-#define WREN_WIFI_CHANNEL  1
+// Kept for the base's stand-alone AP; the lights no longer depend on it (they scan).
+#define WREN_WIFI_CHANNEL  WREN_CHANNEL_DEFAULT
