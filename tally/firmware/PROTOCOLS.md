@@ -61,8 +61,12 @@ docs.openswitcher.org (`udptransport.html`, `fields/switcher.html`). Implemented
   1 program, 2 preview, 3 both), 1 byte brightness, 1 byte flags, 1 byte channel (informational,
   for the serial log). Broadcast every 250 ms even if unchanged, so a light that missed a packet
   converges in <= 250 ms and can show "lost link" after 2 s.
-- Pairing: lights ship with the base's MAC burned in NVS. Pairing button on base + light: 10 s
-  window, base broadcasts its MAC, light stores it. No screens.
+- Pairing (implemented v0.6): the base always broadcasts; a light filters by sender MAC. Base button /
+  serial `a` / web "Pair lights" opens a 10 s window in which every packet carries the PAIRING flag
+  (0x04). A light with no base saved follows any base and saves the MAC of the first base it hears
+  with the flag set. A paired light ignores other bases. Holding the light's button 3 s forgets the
+  base and opens the light's own 10 s window (so a light can move to a new base). Kits ship with the
+  lights already paired at the bench (press `a` once with all four lights powered). No screens.
 - Range: ESP-NOW long-range mode (802.11 LR) is ESP32-only, NOT on C3 for peer links without
   both ends on C3... VERIFY: C3 supports LR mode per Espressif docs; test on the prototype.
 

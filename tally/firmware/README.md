@@ -81,4 +81,13 @@ Turn on Studio Mode and pick a preview scene: that light goes green.
   now proto v2 (adds the base's channel byte), so flash both ends together. Untested on a board.
   Bench check: power a light with the base off; LED 6 blinks amber and the serial log prints "scanning";
   power the base on a venue Wi-Fi that is not channel 1; within ~5 s the log prints "base found on channel N".
-- Not yet: MAC pairing, Ethernet, OTA partition table. PROTOCOLS.md has the notes.
+- Pairing by MAC (v0.6, 2026-10-14): a light with no base saved follows any base (so the bench test above is
+  unchanged) and adopts the first base that broadcasts its pairing flag; after that it ignores other bases.
+  Base: press BOOT (GPIO9), type `a` on serial, or click **Pair lights** on the setup page: 10 s window.
+  Light: hold its button 3 s to forget the base (fast blue blink, 10 s window); one blue flash = paired.
+  Untested on a board. Bench check (~3 min): flash two lights and one base; serial on a light shows
+  `base none (unpaired: follows any base)`; type `a` on the base; the light flashes blue once and logs
+  `paired to base XX:XX:...`; power-cycle the light: boot line now shows that MAC. Flash a second dev board as
+  a base: the paired light must NOT follow it (`p1` on the second base leaves it dark) until you hold the
+  light's button 3 s and press `a` on the second base.
+- Not yet: Ethernet, OTA partition table. PROTOCOLS.md has the notes.

@@ -42,9 +42,15 @@ typedef struct __attribute__((packed)) {
 #define WREN_CHANNEL_MAX   13
 #define WREN_CHANNEL_DEFAULT 1   // stand-alone base (no venue Wi-Fi) sits here
 
-// Dev-board stage: all lights accept broadcasts from any base. Pairing by MAC comes with the
-// real boards (PROTOCOLS.md "Pairing"). The broadcast peer address:
+// Pairing (v0.6, PROTOCOLS.md "Pairing"). The base always broadcasts; a light decides whose
+// packets to obey by the sender MAC. Base: a button / serial 'a' / web "Pair lights" opens a
+// WREN_PAIR_WINDOW_MS window during which every packet carries WREN_FLAG_PAIRING. Light: with no
+// base saved it follows any base and adopts the first one it hears with the flag set; once paired
+// it ignores other bases. Holding the light's button WREN_PAIR_HOLD_MS forgets the base and opens
+// the light's own window. The broadcast peer address:
 static const uint8_t WREN_BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+#define WREN_PAIR_WINDOW_MS 10000
+#define WREN_PAIR_HOLD_MS   3000
 
 // Kept for the base's stand-alone AP; the lights no longer depend on it (they scan).
 #define WREN_WIFI_CHANNEL  WREN_CHANNEL_DEFAULT

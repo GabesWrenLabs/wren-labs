@@ -1,4 +1,4 @@
-// Wren Tally base: switcher client -> ESP-NOW broadcaster. Dev-board stage, v0.5.
+// Wren Tally base: switcher client -> ESP-NOW broadcaster. Dev-board stage, v0.6.
 //
 // What works in this version:
 //   - Any venue Wi-Fi channel: the base sits wherever the router puts it, lights scan and follow
@@ -15,7 +15,9 @@
 //   - ATEM UDP tally client (port 9910, TlIn). Untested on a real switcher; see atem_client.h.
 //   - OBS Studio client (obs-websocket v5, port 4455). Lights follow scene names. Untested; obs_client.h.
 //   - Cue mode: two grounded inputs drive lights 1 and 2 (GO / STANDBY) with no switcher.
-// Not yet: Ethernet, light pairing by MAC. See PROTOCOLS.md.
+//   - Pairing (v0.6): BOOT button, serial 'a' or the web "Pair lights" button opens a 10 s window;
+//     packets carry WREN_FLAG_PAIRING and lights that may pair save this base's MAC (wren_proto.h).
+// Not yet: Ethernet, OTA partition table. See PROTOCOLS.md.
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
@@ -38,6 +40,13 @@ static bool atemStarted = false, obsStarted = false;
 static uint32_t lastTxMs = 0, lastVmixTryMs = 0;
 static bool switcherLive = false;
 static String vmixLine;
+static uint32_t pairUntilMs = 0;  // > millis() while the pairing window is open
+
+static bool pairingOpen() { return pairUntilMs && (int32_t)(pairUntilMs - millis()) > 0; }
+static void openPairing() {
+  pairUntilMs = millis() + WREN_PAIR_WINDOW_MS;
+  Serial.printf("pairing window open for %u s (base mac %s)\n", WREN_PAIR_WINDOW_MS / 1000, WiFi.macAddress().c_str());
+}
 
 static uint8_t currentChannel() {
   uint8_t primary = 0;
@@ -49,7 +58,8 @@ static uint8_t currentChannel() {
 static void sendPacket() {
   pkt.version = WREN_PROTO_VERSION;
   pkt.seq++;
-  pkt.flags = (cueMode ? WREN_FLAG_CUE_MODE : 0) | (switcherLive ? WREN_FLAG_SWITCHER : 0);
+  pkt.flags = (cueMode ? WREN_FLAG_CUE_MODE : 0) | (switcherLive ? WREN_FLAG_SWITCHER : 0) |
+              (pairingOpen() ? WREN_FLAG_PAIRING : 0);
   pkt.channel = currentChannel();  // informational; lights find us by scanning (wren_proto.h)
   esp_now_send(WREN_BROADCAST_MAC, (const uint8_t *)&pkt, sizeof(pkt));
 }
@@ -58,11 +68,13 @@ static void setAll(uint8_t s) { for (int i = 0; i < WREN_MAX_LIGHTS; i++) pkt.st
 
 static String statusText() {
   char buf[200];
-  snprintf(buf, sizeof(buf), "lights: %u %u %u %u  bright=%u cue=%d\nswitcher: %s %s:%u %s\nwifi: %s%s  channel=%u  seq=%u",
+  char pairing[32] = "";
+  if (pairingOpen()) snprintf(pairing, sizeof(pairing), "  PAIRING %lu s left", (unsigned long)((pairUntilMs - millis()) / 1000));
+  snprintf(buf, sizeof(buf), "lights: %u %u %u %u  bright=%u cue=%d\nswitcher: %s %s:%u %s\nwifi: %s%s  channel=%u  seq=%u%s",
            pkt.state[0], pkt.state[1], pkt.state[2], pkt.state[3], pkt.brightness, cueMode,
            cfg.typeName(), cfg.host.c_str(), cfg.effectivePort(), switcherLive ? "CONNECTED" : "not connected",
            WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString().c_str() : "not joined",
-           web.apUp ? " (setup AP up)" : "", currentChannel(), pkt.seq);
+           web.apUp ? " (setup AP up)" : "", currentChannel(), pkt.seq, pairing);
   return String(buf);
 }
 
@@ -85,8 +97,9 @@ static void handleSerial() {
       else if (cmd == 'b') pkt.brightness = constrain(n, 0, 255);
       else if (cmd == 'c') cueMode = !cueMode;
       else if (cmd == 's') printStatus();
+      else if (cmd == 'a') openPairing();
       else if (cmd == 'f') { Serial.println("factory reset"); WrenConfig::factoryReset(); delay(200); ESP.restart(); }
-      else Serial.println("cmds: pN vN o bNNN c s f");
+      else Serial.println("cmds: pN vN o bNNN c s a f");
       sendPacket();
       printStatus();
     }
@@ -171,6 +184,18 @@ static void pollSwitcher() {
   }
 }
 
+// BOOT button: a press (released within 3 s) opens the pairing window. Holding it longer does nothing
+// yet (reserved for factory reset on the real board).
+static void pollPairButton() {
+  static bool wasDown = false;
+  static uint32_t downSince = 0;
+  uint32_t now = millis();
+  bool down = digitalRead(BASE_PAIR_BTN_PIN) == LOW;
+  if (down && !wasDown) downSince = now;
+  if (!down && wasDown && now - downSince > 30 && now - downSince < 3000) openPairing();
+  wasDown = down;
+}
+
 static void pollCueInputs() {
   if (!cueMode) return;
   pkt.state[0] = digitalRead(BASE_CUE_IN_1) == LOW ? WREN_PROGRAM : WREN_OFF;
@@ -183,6 +208,7 @@ void setup() {
   pinMode(BASE_STATUS_LED_PIN, OUTPUT);
   pinMode(BASE_CUE_IN_1, INPUT_PULLUP);
   pinMode(BASE_CUE_IN_2, INPUT_PULLUP);
+  pinMode(BASE_PAIR_BTN_PIN, INPUT_PULLUP);
   memset(&pkt, 0, sizeof(pkt));
 
   cfg.load();
@@ -194,6 +220,7 @@ void setup() {
   // Brings up STA (if a venue Wi-Fi is saved) and the setup AP, then the web page.
   // Joining a venue AP moves the radio to that AP's channel. That's fine: lights scan for us
   // (see wren_proto.h "Channel-follow") and the packet carries the channel for the serial log.
+  web.onPair = openPairing;
   web.begin(&cfg, statusText, WREN_WIFI_CHANNEL);
 
   if (esp_now_init() != ESP_OK) { Serial.println("esp_now_init failed"); while (true) delay(1000); }
@@ -205,13 +232,14 @@ void setup() {
   esp_now_add_peer(&peer);
 
   Serial.printf("Wren base  mac %s\n", WiFi.macAddress().c_str());
-  Serial.println("serial cmds: pN (program light N) vN (preview) o (off) bNNN (brightness) c (cue mode) s (status) f (factory reset)");
+  Serial.println("serial cmds: pN (program light N) vN (preview) o (off) bNNN (brightness) c (cue mode) s (status) a (pair 10 s) f (factory reset)");
 }
 
 void loop() {
   handleSerial();
   web.loop();
   pollSwitcher();
+  pollPairButton();
   pollCueInputs();
 
   uint32_t now = millis();

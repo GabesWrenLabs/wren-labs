@@ -19,10 +19,12 @@
 #include "config.h"
 
 typedef String (*StatusFn)();
+typedef void (*ActionFn)();
 
 class WebConfig {
  public:
   bool apUp = false;
+  ActionFn onPair = nullptr;  // main.cpp sets this; "Pair lights" button opens the base's 10 s window
 
   void begin(WrenConfig *cfg, StatusFn status, uint8_t espNowChannel) {
     _cfg = cfg; _status = status; _channel = espNowChannel;
@@ -49,6 +51,10 @@ class WebConfig {
       _server.send(200, "text/html", "<p>Settings cleared. Rebooting.</p>");
       delay(300);
       ESP.restart();
+    });
+    _server.on("/pair", HTTP_POST, [this]() {
+      if (onPair) onPair();
+      _page("Pairing window open for 10 s. Unpaired lights (or lights whose button you hold 3 s) join this base now.");
     });
     _server.onNotFound([this]() { _server.sendHeader("Location", "/"); _server.send(302); });
     _server.begin();
@@ -150,8 +156,10 @@ class WebConfig {
            "<input name=appass maxlength=63 value=\"");
     h += _esc(c.apPass);
     h += F("\"></fieldset><button type=submit>Save and restart</button></form>"
+           "<form method=post action=/pair><button type=submit>Pair lights (10 s)</button> <small>New lights join on their own. "
+           "To move a light from another base, hold its button 3 s, then press this.</small></form>"
            "<form method=post action=/reset onsubmit=\"return confirm('Clear all settings?')\"><button type=submit>Factory reset</button></form>"
-           "<p><small>Wren Tally base, firmware v0.5 (dev-board stage). Made by Wren Labs.</small></p></body></html>");
+           "<p><small>Wren Tally base, firmware v0.6 (dev-board stage). Made by Wren Labs.</small></p></body></html>");
     _server.send(200, "text/html", h);
   }
 

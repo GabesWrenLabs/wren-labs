@@ -13,3 +13,4 @@
 #define BASE_STATUS_LED_PIN 8    // on-board LED on many C3 boards (active low on SuperMini)
 #define BASE_CUE_IN_1       2    // cue mode inputs: ground = active (stage manager's GO button)
 #define BASE_CUE_IN_2       3
+#define BASE_PAIR_BTN_PIN   9    // pairing button (BOOT button on most C3 dev boards): press = 10 s window

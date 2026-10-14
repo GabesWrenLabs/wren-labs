@@ -1,4 +1,4 @@
-// Wren Tally light: ESP-NOW receiver + 6 RGB LEDs. Dev-board stage, v0.5.
+// Wren Tally light: ESP-NOW receiver + 6 RGB LEDs. Dev-board stage, v0.6.
 //
 // Behaviour:
 //   - Listens for WrenPacket broadcasts from the base (any base, dev-board stage).
@@ -9,6 +9,11 @@
 //     base again. The channel it locks on is saved in flash, so next power-up starts there.
 //     This is what lets the base join any venue Wi-Fi (whose router picks the channel) with no
 //     setting on the lights.
+//   - Pairing (v0.6): a light that has no base saved follows ANY base (bench convenience) and adopts
+//     the first base whose packet carries WREN_FLAG_PAIRING (the base's 10 s window), saving that
+//     base's MAC in flash. A paired light ignores every other base, so two venues next door don't
+//     cross-talk. Hold the button 3 s: the light forgets its base, blinks blue, and opens its own
+//     10 s window in which it also takes a pairing packet from any base. No screens, no app.
 //   - Brightness: base's value, unless the local button has been pressed (then local, cycles 4 steps).
 //   - Light number comes from two jumpers (see wren_pins.h) and prints on the serial port at boot.
 #include <Arduino.h>
@@ -34,10 +39,36 @@ static uint8_t savedChannel = WREN_CHANNEL_DEFAULT; // channel in flash (last on
 static bool scanning = false;
 static uint32_t scanHopMs = 0;
 
+// Pairing state. pairedMac is all-zero when no base is saved.
+static uint8_t pairedMac[6] = {0};
+static volatile bool pairPending = false;    // set in the RX callback, acted on in loop() (no NVS in callbacks)
+static volatile uint8_t pendingMac[6] = {0};
+static uint32_t pairWindowUntil = 0;         // light's own 10 s window after a long press (0 = closed)
+
+static bool isPaired() {
+  for (int i = 0; i < 6; i++) if (pairedMac[i]) return true;
+  return false;
+}
+
 static void onRecv(const uint8_t *mac, const uint8_t *data, int len) {
   if (len != (int)sizeof(WrenPacket)) return;
   const WrenPacket *p = (const WrenPacket *)data;
   if (p->version != WREN_PROTO_VERSION) return;
+  bool fromMyBase = isPaired() && memcmp(mac, pairedMac, 6) == 0;
+  if (!fromMyBase) {
+    // A stranger base. Take it only while pairing is possible: we have no base yet, or the
+    // button opened our window. And only if that base is in ITS window (flag set), so a venue's
+    // idle base can't be adopted by a neighbour's light by accident.
+    bool mayPair = (!isPaired() || millis() < pairWindowUntil);
+    if (p->flags & WREN_FLAG_PAIRING) {
+      if (!mayPair) return;
+      memcpy((void *)pendingMac, mac, 6);
+      pairPending = true;
+    } else if (isPaired()) {
+      return;  // paired to someone else: ignore
+    }
+    // unpaired + no pairing flag: follow it anyway (dev-board / bench behaviour)
+  }
   memcpy((void *)&lastPkt, p, sizeof(WrenPacket));
   lastRxMs = millis();
   rxCount++;
@@ -76,6 +107,28 @@ static void saveChannel(uint8_t ch) {
   Serial.printf("channel %u saved\n", ch);
 }
 
+static void loadPairedMac() {
+  Preferences p;
+  p.begin("wrenlight", true);
+  if (p.getBytesLength("base") == 6) p.getBytes("base", pairedMac, 6);
+  else memset(pairedMac, 0, 6);
+  p.end();
+}
+
+static void savePairedMac(const uint8_t *mac) {
+  Preferences p;
+  p.begin("wrenlight", false);
+  if (mac) p.putBytes("base", mac, 6); else p.remove("base");
+  p.end();
+  if (mac) memcpy(pairedMac, mac, 6); else memset(pairedMac, 0, 6);
+}
+
+static String macStr(const uint8_t *m) {
+  char b[18];
+  snprintf(b, sizeof(b), "%02X:%02X:%02X:%02X:%02X:%02X", m[0], m[1], m[2], m[3], m[4], m[5]);
+  return String(b);
+}
+
 // Returns false if the radio refused the channel (regulatory limit, e.g. 12/13 in some regions).
 static bool setChannel(uint8_t ch) {
   if (esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE) != ESP_OK) return false;
@@ -110,6 +163,7 @@ void setup() {
   fillAll(0, 96);
 
   savedChannel = loadChannel();
+  loadPairedMac();
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   if (!setChannel(savedChannel)) setChannel(WREN_CHANNEL_DEFAULT);
@@ -119,16 +173,26 @@ void setup() {
   }
   esp_now_register_recv_cb(onRecv);
 
-  Serial.printf("Wren light %u  mac %s  channel %u (saved)\n", myIndex + 1, WiFi.macAddress().c_str(), curChannel);
+  Serial.printf("Wren light %u  mac %s  channel %u (saved)  base %s\n", myIndex + 1, WiFi.macAddress().c_str(),
+                curChannel, isPaired() ? macStr(pairedMac).c_str() : "none (unpaired: follows any base)");
 }
 
+// Short press: brightness step. Hold WREN_PAIR_HOLD_MS: forget the base and open a pairing window.
 static void pollButton() {
-  static uint32_t lastPress = 0;
-  static bool wasDown = false;
+  static uint32_t downSince = 0;
+  static bool wasDown = false, longFired = false;
   static uint8_t step = 1;
+  uint32_t now = millis();
   bool down = digitalRead(LIGHT_BTN_PIN) == LOW;
-  if (down && !wasDown && millis() - lastPress > 250) {
-    lastPress = millis();
+  if (down && !wasDown) { downSince = now; longFired = false; }
+  if (down && !longFired && now - downSince >= WREN_PAIR_HOLD_MS) {
+    longFired = true;
+    savePairedMac(nullptr);
+    lastRxMs = 0;  // drop the current base; show "unpaired" until a packet is accepted again
+    pairWindowUntil = now + WREN_PAIR_WINDOW_MS;
+    Serial.println("button held: base forgotten, pairing window open 10 s");
+  }
+  if (!down && wasDown && !longFired && now - downSince > 30) {  // short press released (debounced)
     step = (step + 1) % 4;
     localBrightness = BRIGHT_STEPS[step];
     Serial.printf("brightness -> %d (local)\n", localBrightness);
@@ -140,6 +204,28 @@ void loop() {
   pollButton();
 
   uint32_t now = millis();
+
+  if (pairPending) {
+    uint8_t m[6];
+    memcpy(m, (const void *)pendingMac, 6);
+    pairPending = false;
+    if (memcmp(m, pairedMac, 6) != 0) {
+      savePairedMac(m);
+      pairWindowUntil = 0;
+      Serial.printf("paired to base %s (saved)\n", macStr(m).c_str());
+      fillAll(strip.Color(0, 0, 255), 160); delay(300);  // one blue flash = paired
+    }
+  }
+
+  if (pairWindowUntil && now < pairWindowUntil) {
+    // Our own window: blink blue fast until a base in its window is heard (or 10 s pass).
+    strip.setBrightness(96);
+    fillAll((now / 150) % 2 == 0 ? strip.Color(0, 0, 255) : 0, 96);
+    delay(20);
+    return;
+  }
+  pairWindowUntil = 0;
+
   bool linked = (lastRxMs != 0) && (now - lastRxMs < WREN_LINK_TIMEOUT);
 
   if (!linked) {
@@ -179,8 +265,9 @@ void loop() {
   static uint32_t lastLog = 0;
   if (now - lastLog > 5000) {
     lastLog = now;
-    Serial.printf("rx=%lu seq=%u mine=%u flags=0x%02x bright=%u ch=%u (base says %u)\n", (unsigned long)rxCount,
-                  p.seq, s, p.flags, p.brightness, curChannel, p.channel);
+    Serial.printf("rx=%lu seq=%u mine=%u flags=0x%02x bright=%u ch=%u (base says %u) base=%s\n", (unsigned long)rxCount,
+                  p.seq, s, p.flags, p.brightness, curChannel, p.channel,
+                  isPaired() ? macStr(pairedMac).c_str() : "any");
   }
   delay(10);
 }
