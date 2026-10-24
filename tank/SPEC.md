@@ -12,9 +12,12 @@ tested yet. Guesses are marked (guess).
 - Survives a Utah winter outdoors (guess on exact rating; target IP67 box, -20 C).
 
 ## Two parts
-1. **Tank node.** Float switch on a cable (sump style) hung in the tank; LoRa radio (915 MHz, SX1262 class);
-   ESP32-C3; 1-2 W solar panel + Li-ion cell + charger; IP67 box with a gland; 915 MHz antenna. Sends "level OK /
-   LOW" plus battery voltage every 10 minutes and immediately on change. Sleeps between sends.
+1. **Tank node.** Float switch on a cable (sump style) hung in the tank; LoRa radio (SX1262 class module with its
+   own FCC ID, see unknown 5); ESP32-C3; 3x AA lithium cells (v1 has no solar: a 1 W panel plus charger costs ~$35 at
+   small quantity, more than the rest of the node's electronics); IP67 box with a gland; 915 MHz-band antenna.
+   Sends "level OK / LOW" plus battery voltage every 10 minutes and immediately on change. Sleeps between sends.
+   Radio frequency for the product: inside 902.3-914.9 MHz (e.g. 906.5 MHz), because that is the range the module
+   grants cover. The dev-board range test runs at 915.0 MHz, which is fine for a test but not for the product.
 2. **House base.** Same radio + ESP32; loud buzzer, big LED, one button to silence; USB power. Optional Wi-Fi
    join (captive portal, like the tally base) so it can send a text/email. Raises an alarm if the tank node
    goes silent for 1 hour (dead battery, broken antenna) so silence is never mistaken for "fine".
@@ -27,8 +30,8 @@ Add-on: more tank nodes, one base. Each node has an ID; the base shows which tan
 | 1 | Is driving to check tanks a real, named cost for a rancher? | Farm-store counter call (ask #10), one rancher conversation via Gabe's network | open, 0 conversations so far |
 | 2 | LoRa range tank-to-house over real Utah ground, no line of sight | Two Heltec LoRa 32 V3 boards (ask #11), range-test firmware, Gabe drives | open |
 | 3 | Float switch survives ice, algae, cattle | Ask ranchers what floats they trust; test one over a winter | open |
-| 4 | Power budget: does a 1 W panel keep a cell charged through December? | Measure sleep current on the prototype; math in COSTS.md | open |
-| 5 | FCC: certified LoRa module + Part 15B self-declaration | Pick a module with its own FCC ID (Seeed Wio-SX1262 / RAK3172 class); budget the scan after demand | open |
+| 4 | Power budget: do 3 AA lithium cells last a season at a ping every 10 minutes? | Measure sleep current on the prototype; math in COSTS.md | open |
+| 5 | FCC: certified LoRa module + Part 15B self-declaration | **Module side answered 2026-10-24:** Seeed Wio-SX1262 holds FCC ID Z4T-WIO-SX1262 (single modular, granted 2024-10-16, 902.3-914.9 MHz); RAK3172 holds 2AF6B-RAK3172 (902.3-914.9 MHz). Host label must read "Contains FCC ID: ...". Part 15B scan still to budget after demand. | module: done; host: open |
 
 Unknowns 1 and 2 come first. No custom PCB until 1 is answered by a human and 2 by a drive.
 
